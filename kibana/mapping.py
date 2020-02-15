@@ -74,6 +74,17 @@ class KibanaMapping():
         self.get_url = ('http://%s:%s/' % (self._host[0], self._host[1]) +
                         '%s/' % self.index +
                         'index-pattern/%s/' % self._index_pattern)
+        self.indices_url = ('http://%s:%s/' % (self._host[0], self._host[1]) +
+                            '_cat/indices/%s?h=index' % self._index_pattern)
+
+    def mapping_url_for_index(self, index):
+        url = ('http://%s:%s/' % (self._host[0], self._host[1]) +
+                '%s/' % index +
+                '_mapping/field/' +
+                '*?ignore_unavailable=false&' +
+                'allow_no_indices=false&' +
+                'include_defaults=true')
+        return url
 
     @property
     def index_pattern(self):
@@ -97,7 +108,9 @@ class KibanaMapping():
         """Return a list of fields' mappings"""
         if cache_type == 'kibana':
             try:
+                self.pr_dbg("Getting field cache from Kibana: %s" % self.get_url)
                 search_results = urlopen(self.get_url).read().decode('utf-8')
+                self.pr_dbg('Kibana mapping retrival complete.')
             except HTTPError:  # as e:
                 # self.pr_err("get_field_cache(kibana), HTTPError: %s" % e)
                 return []
@@ -106,20 +119,28 @@ class KibanaMapping():
             fields_str = index_pattern['_source']['fields']
             return json.loads(fields_str)
         elif cache_type == 'es' or cache_type.startswith('elastic'):
-            search_results = urlopen(self.es_get_url).read().decode('utf-8')
-            es_mappings = json.loads(search_results)
-            # Results look like: {"<index_name>":{"mappings":{"<doc_type>":{"<field_name>":{"full_name":"<field_name>","mapping":{"<sub-field_name>":{"type":"date","index_name":"<sub-field_name>","boost":1.0,"index":"not_analyzed","store":false,"doc_values":false,"term_vector":"no","norms":{"enabled":false},"index_options":"docs","index_analyzer":"_date/16","search_analyzer":"_date/max","postings_format":"default","doc_values_format":"default","similarity":"default","fielddata":{},"ignore_malformed":false,"coerce":true,"precision_step":16,"format":"dateOptionalTime","null_value":null,"include_in_all":false,"numeric_resolution":"milliseconds","locale":""}}},  # noqa
-            # now convert the mappings into the .kibana format
+            self.pr_dbg("Getting list of indices: %s" % self.indices_url)
+            indices = urlopen(self.indices_url).read().decode('utf-8').split("\n")
+            # Remove empty strings from list because it can cause huge mappings to be retrieved, which we want to avoid.
+            indices = [i for i in indices if i]
+            self.pr_dbg("%d indices matched: %s" % (len(indices), ', '.join(indices)))
+            # self.pr_dbg('Elasticsearch mapping retrival complete. Mapping written to %s' % search_results[0])
             field_cache = []
-            for (index_name, val) in iteritems(es_mappings):
-                if index_name != self.index:  # only get non-'.kibana' indices
-                    # self.pr_dbg("index: %s" % index_name)
-                    m_dict = es_mappings[index_name]['mappings']
-                    # self.pr_dbg('m_dict %s' % m_dict)
-                    mappings = self.get_index_mappings(m_dict)
-                    # self.pr_dbg('mappings %s' % mappings)
-                    field_cache.extend(mappings)
-            field_cache = self.dedup_field_cache(field_cache)
+            #es_mappings = json.load(maps)
+            for index in indices:
+                self.pr_dbg('Now processing index %s' % index)
+                index_mapping_url = self.mapping_url_for_index(index)
+                index_mapping_json = urlopen(index_mapping_url).read().decode('utf-8')
+                index_mapping = json.loads(index_mapping_json)
+                self.pr_dbg('Size of index_mapping json object: %d' % sys.getsizeof(index_mapping))
+                m_dict = index_mapping[index]['mappings']
+                mappings = self.get_index_mappings(m_dict)
+                field_cache.extend(mappings)
+                # Results look like: {"<index_name>":{"mappings":{"<doc_type>":{"<field_name>":{"full_name":"<field_name>","mapping":{"<sub-field_name>":{"type":"date","index_name":"<sub-field_name>","boost":1.0,"index":"not_analyzed","store":false,"doc_values":false,"term_vector":"no","norms":{"enabled":false},"index_options":"docs","index_analyzer":"_date/16","search_analyzer":"_date/max","postings_format":"default","doc_values_format":"default","similarity":"default","fielddata":{},"ignore_malformed":false,"coerce":true,"precision_step":16,"format":"dateOptionalTime","null_value":null,"include_in_all":false,"numeric_resolution":"milliseconds","locale":""}}},  # noqa
+                # dedupe as soon as possible because this data structure can get huge.
+                field_cache = self.dedup_field_cache(field_cache)
+                self.pr_dbg('Size of field_cache: %d' % sys.getsizeof(field_cache))
+                break
             return field_cache
         self.pr_err("Unknown cache type: %s" % cache_type)
         return None
@@ -142,12 +163,14 @@ class KibanaMapping():
     def post_field_cache(self, field_cache):
         """Where field_cache is a list of fields' mappings"""
         index_pattern = self.field_cache_to_index_pattern(field_cache)
-        # self.pr_dbg("request/post: %s" % index_pattern)
         resp = requests.post(self.post_url, data=index_pattern).text
         # resp = {"_index":".kibana","_type":"index-pattern","_id":"aaa*","_version":1,"created":true}  # noqa
-        resp = json.loads(resp)
+        self.pr_dbg(resp)
+        # resp_json = json.loads(resp)
+        if 'error' in resp:
+            self.pr_err(resp)
+            return 1
         return 0
-        # TODO detect failure (return 1)
 
     def field_cache_to_index_pattern(self, field_cache):
         """Return a .kibana index-pattern doc_type"""
@@ -251,6 +274,7 @@ class KibanaMapping():
                  "indexed": False,
                  "analyzed": False,
                  "doc_values": False})
+        #self.pr_dbg("\tget_doc_type_mappings: returning doc_fields_arr with %d values." % len(doc_fields_arr))
         return doc_fields_arr
 
     def get_field_mappings(self, field):
@@ -296,6 +320,7 @@ class KibanaMapping():
 
     def do_refresh(self, force=False):
         es_cache = self.get_field_cache('es')
+        print(es_cache)
         if force:
             self.pr_inf("Forcing mapping update")
             # no need to get kibana if we are forcing it
