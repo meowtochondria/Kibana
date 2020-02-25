@@ -38,8 +38,15 @@ class KibanaMapping():
         # determined by the value within ES's 'index', which could be:
         #     { analyzed, no, not_analyzed }
         self.mappings = ['type', 'doc_values']
-        # ignore system fields:
-        self.sys_mappings = ['_source', '_index', '_type', '_id']
+        # system fields and corresponding types:
+        self.sys_mappings = {
+            '_source': '_source',
+            '_index': 'string',
+            '_type': 'string',
+            '_id': 'string',
+            '_fp': 'string',
+            '_score': 'number'
+        }
         # .kibana has some fields to ignore too:
         self.mappings_ignore = ['count']
         self.debug = debug
@@ -218,9 +225,11 @@ class KibanaMapping():
             doc_mapping = self.get_doc_type_mappings(val, field_caps)
             # self.pr_dbg("\tdoc_mapping: %s" % doc_mapping)
             if doc_mapping is None:
-                return None
+                continue
             # keep adding to the fields array
             fields_arr.extend(doc_mapping)
+
+        fields_arr.extend(self.get_mapping_for_system_fields())
         return fields_arr
 
     def get_doc_type_mappings(self, doc_type, field_caps):
@@ -287,6 +296,24 @@ class KibanaMapping():
             retdict['type'] = "string"
 
         return retdict
+
+    def get_mapping_for_system_fields(self):
+        dotkibana_mappings = []
+        for field, kibana_type in iteritems(self.sys_mappings):
+            kibana_mapping = {
+                "name": field,
+                "type": kibana_type,
+                "count": 0,
+                "scripted": False,
+                "indexed": False,
+                "analyzed": False,
+                "doc_values": False,
+                "searchable": False,
+                "aggregatable": False
+            }
+            dotkibana_mappings.append(kibana_mapping)
+
+        return dotkibana_mappings
 
     def refresh_poll(self, period):
         self.poll_another = True
