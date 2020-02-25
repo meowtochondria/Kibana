@@ -8,7 +8,7 @@
 ###    ####################### ###     ######    #######     ###
 ```
 
-### Kibana: a CLI for Kibana v4 configuration (.kibana index interaction)
+### Kibana: a CLI for Kibana v5 configuration (.kibana index interaction)
 
 * Import/export Kibana dashboards, visualizations, saved searches
     * Compatible with Kibana UI's import/export
@@ -55,6 +55,7 @@ optional arguments:
                         export only: output file(s) directory
   --host HOST           ES host to use, format ip:port
                         default: 127.0.0.1:9200
+  --force               Force refresh.
 ```
 
 
