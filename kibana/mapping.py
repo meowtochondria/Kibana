@@ -140,7 +140,7 @@ class KibanaMapping():
                 # dedupe as soon as possible because this data structure can get huge.
                 field_cache = self.dedup_field_cache(field_cache)
                 self.pr_dbg('Size of field_cache: %d' % sys.getsizeof(field_cache))
-                break
+                # break
             return field_cache
         self.pr_err("Unknown cache type: %s" % cache_type)
         return None
