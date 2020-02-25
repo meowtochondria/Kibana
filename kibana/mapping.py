@@ -128,7 +128,6 @@ class KibanaMapping():
         field_cache = []
         processing_index_num = 0
         for index in indices:
-            #index = 'logstash-2020.02.24-000002' # DEBUG
             processing_index_num += 1
             self.pr_dbg('Now processing index %s (%d of %d)' % (index, processing_index_num, num_indices))
             index_mapping_url = self.mapping_url_for_index(index)
@@ -144,7 +143,6 @@ class KibanaMapping():
             # dedupe as soon as possible because this data structure can get huge.
             field_cache = self.dedup_field_cache(field_cache)
             self.pr_dbg('Size of field_cache after deduping: %d bytes' % sys.getsizeof(field_cache))
-            #break # DEBUG
         return field_cache
 
     def dedup_field_cache(self, field_cache):
@@ -168,13 +166,12 @@ class KibanaMapping():
         resp = requests.post(self.post_url, data=index_pattern).text
         ## DEBUG
         # Open the file for writing.
-        debug_file = '/tmp/post_payload'
-        with open(debug_file, 'w') as f:
-            f.write('Post URL %s\n' % self.post_url)
-            f.write(index_pattern)
-            self.pr_dbg('Payload written to %s' % debug_file)
-            f.flush()
-
+        # debug_file = '/tmp/post_payload'
+        # with open(debug_file, 'w') as f:
+        #     f.write('Post URL %s\n' % self.post_url)
+        #     f.write(index_pattern)
+        #     self.pr_dbg('Payload written to %s' % debug_file)
+        #     f.flush()
         # resp ='{}'
         ## END DEBUG
 
@@ -229,7 +226,6 @@ class KibanaMapping():
     def get_doc_type_mappings(self, doc_type, field_caps):
         """Converts all doc_types' fields to .kibana"""
         doc_fields_arr = []
-        found_score = False
         for (key, val) in iteritems(doc_type):
             # self.pr_dbg("\t\tfield: %s" % key)
             # self.pr_dbg("\tval: %s" % val)
@@ -253,20 +249,6 @@ class KibanaMapping():
             # self.pr_dbg("\t\tsubkey_name: %s" % subkey_name)
             retdict = self.get_field_mappings(
                 doc_type[key]['mapping'][subkey_name], field_caps[key])
-            # system mappings don't list a type,
-            # but kibana makes them all strings
-            # if key in self.sys_mappings:
-            #     retdict['analyzed'] = False
-            #     retdict['indexed'] = False
-            #     retdict['searchable'] = False
-            #     retdict['aggregatable'] = False
-            #     if key == '_source':
-            #         retdict = self.get_field_mappings(
-            #             doc_type[key]['mapping'][key], field_caps[key])
-            #         retdict['type'] = "_source"
-            #     elif 'type' not in retdict:
-            #         retdict['type'] = "string"
-            #     add_it = True
             retdict['name'] = key
 
             if not self.check_mapping(retdict):
@@ -275,16 +257,6 @@ class KibanaMapping():
             # the fields element is an escaped array of json
             # make the array here, after all collected, then escape it
             doc_fields_arr.append(retdict)
-        # if not found_score:
-        #     doc_fields_arr.append(
-        #         {"name": "_score",
-        #          "type": "number",
-        #          "count": 0,
-        #          "scripted": False,
-        #          "indexed": False,
-        #          "analyzed": False,
-        #          "doc_values": False})
-        #self.pr_dbg("\tget_doc_type_mappings: returning doc_fields_arr with %d values." % len(doc_fields_arr))
         return doc_fields_arr
 
     def get_field_mappings(self, field, capabilities):
