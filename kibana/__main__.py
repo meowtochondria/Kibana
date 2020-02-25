@@ -100,9 +100,8 @@ def getargs():
         '--force',
         action='store_true',
         dest='force',
-        default=False
+        default=False,
         help="Force refresh even if algorithm thinks it is not needed.")
-
     infile = None
     exp_obj = None
     map_cmd = None
