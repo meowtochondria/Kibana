@@ -7,10 +7,10 @@ import argparse
 from .dotkibana import DotKibana
 
 
-def handle_mapping(dotk, sub_mode):
+def handle_mapping(dotk, sub_mode, force_refresh):
     if sub_mode.startswith('refresh'):
         print("Mimicking Kibana GUI refreshFields")
-        return dotk.do_mapping_refresh()
+        return dotk.do_mapping_refresh(force_refresh)
     elif sub_mode.startswith('poll'):
         return dotk.poll_mapping_refresh()
     elif dotk.needs_mapping_refresh():
@@ -96,6 +96,12 @@ def getargs():
         dest='index',
         default='.kibana',
         help='Kibana index to work on')
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        dest='force',
+        default=False)
+
     infile = None
     exp_obj = None
     map_cmd = None
@@ -136,6 +142,7 @@ def getargs():
     args['outdir'] = results.output_path
     args['index'] = results.index
     args['pr_dbg'] = results.pr_dbg
+    args['force'] = results.force
     return args
 
 
@@ -143,7 +150,7 @@ def main():
     args = getargs()
     dotk = DotKibana(index_pattern=args['idx_pattern'], host=args['host'], index=args['index'], debug=args['pr_dbg'])
     if args['mode'] == 'mapping':
-        return handle_mapping(dotk, args['map_cmd'])
+        return handle_mapping(dotk, args['map_cmd'], args['force'])
     elif args['mode'] == 'export':
         return handle_export(
             dotk,

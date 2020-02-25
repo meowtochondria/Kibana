@@ -36,8 +36,8 @@ class DotKibana():
         self.mapping.host(host)
         self.manager.host(host)
 
-    def do_mapping_refresh(self):
-        return self.mapping.do_refresh()
+    def do_mapping_refresh(self, force_refresh):
+        return self.mapping.do_refresh(force=force_refresh)
 
     def poll_mapping_refresh(self, period=15):
         return self.mapping.refresh_poll(period)
